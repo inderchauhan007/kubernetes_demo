@@ -1,0 +1,66 @@
+1) In Last Lab , We successfully Deployed Application Pod using Controller Type: Deployment 
+
+1)In this Lab lets Perform Scale-Up & Scale-Down
+
+Current status of Deployment :
+
+inders-MacBook-Pro:poddemo chauhai1$ kubectl get deployment.apps
+NAME                 DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
+grafana-deployment   3         3         3            0           5m
+
+Pod Status . : 
+
+pod/grafana-deployment-85d5c6cd58-gjb8f   0/1       ImagePullBackOff   0          5m
+pod/grafana-deployment-85d5c6cd58-wsfwd   0/1       ImagePullBackOff   0          5m
+pod/grafana-deployment-85d5c6cd58-zb87p   0/1       ImagePullBackOff   0          5m
+
+2) Lets Perform Scale UP & Down - We are scaling from 3 to 6
+
+inders-MacBook-Pro:poddemo chauhai1$ kubectl scale --replicas=6 deployment.apps/grafana-deployment
+deployment.apps "grafana-deployment" scaled
+inders-MacBook-Pro:poddemo chauhai1$ 
+
+inders-MacBook-Pro:poddemo chauhai1$ kubectl get deployment.apps |grep -i grafana-deployment
+grafana-deployment   6         6         6            0           8m
+inders-MacBook-Pro:poddemo chauhai1$ 
+
+Pod Status :
+
+grafana-deployment-85d5c6cd58-8whtw   0/1       ImagePullBackOff   0          48s       172.17.0.24   localhost
+grafana-deployment-85d5c6cd58-gjb8f   0/1       ImagePullBackOff   0          9m        172.17.0.21   localhost
+grafana-deployment-85d5c6cd58-hffft   0/1       ImagePullBackOff   0          48s       172.17.0.26   localhost
+grafana-deployment-85d5c6cd58-wsfwd   0/1       ImagePullBackOff   0          9m        172.17.0.20   localhost
+grafana-deployment-85d5c6cd58-zb87p   0/1       ImagePullBackOff   0          9m        172.17.0.19   localhost
+
+3) Lets Scale Down to 1
+
+inders-MacBook-Pro:poddemo chauhai1$ kubectl scale --replicas=1 deployment.apps/grafana-deployment
+deployment.apps "grafana-deployment" scaled
+inders-MacBook-Pro:poddemo chauhai1$ 
+
+inders-MacBook-Pro:poddemo chauhai1$ kubectl get pods -o wide
+NAME                                  READY     STATUS             RESTARTS   AGE       IP            NODE
+
+grafana-deployment-85d5c6cd58-8fs6r   0/1       Terminating        0          1m        172.17.0.25   localhost
+grafana-deployment-85d5c6cd58-8whtw   0/1       Terminating        0          1m        172.17.0.24   localhost
+grafana-deployment-85d5c6cd58-gjb8f   0/1       Terminating        0          9m        172.17.0.21   localhost
+grafana-deployment-85d5c6cd58-hffft   0/1       Terminating        0          1m        172.17.0.26   localhost
+grafana-deployment-85d5c6cd58-wsfwd   0/1       ImagePullBackOff   0          9m        172.17.0.20   localhost
+grafana-deployment-85d5c6cd58-zb87p   0/1       Terminating        0          9m        172.17.0.19   localhost
+
+
+inders-MacBook-Pro:poddemo chauhai1$ oc get all |grep -i grafana
+pod/grafana-deployment-85d5c6cd58-wsfwd   0/1       ImagePullBackOff   0          11m
+
+deployment.apps/grafana-deployment   1         1         1            0           11m
+
+replicaset.apps/grafana-deployment-85d5c6cd58   1         1         0         11m
+
+
+inders-MacBook-Pro:poddemo chauhai1$ 
+
+######################################################
+######################################################
+
+Rolling Updates and Rollbacks
+============================
