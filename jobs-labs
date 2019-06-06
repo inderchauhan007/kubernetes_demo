@@ -1,0 +1,372 @@
+Working with Jobs:
+===================
+While most API objects are deployed such that they continue to be available there are some which we may want to run a
+particular number of times called a Job, and others on a regular basis called a CronJob
+
+
+1. Create a job which will run a container which sleeps for three seconds then stops.
+
+Job Defination:
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sleepy
+spec:
+  template:
+   spec:
+     containers:
+     - name: resting
+       image: xxxxxxxxxx/openshift3/jobdemo:latest
+       command: [ "/bin/sleep" ]
+       args: [ "3" ]
+     restartPolicy: Never
+      
+
+2. Create the job, then verify and view the details. The example shows checking the job three seconds in and then again
+after it has completed. You may see different output depending on how fast you type.
+
+inders-MacBook-Pro:~ chauhai1$ kubectl apply -f job.yaml
+
+
+inders-MacBook-Pro:~ chauhai1$ kubectl get job
+NAME      DESIRED   SUCCESSFUL   AGE
+sleepy    0        1            10s
+
+
+=====
+
+inders-MacBook-Pro:~ chauhai1$  kubectl describe jobs.batch sleepy
+
+Name:           sleepy
+Namespace:      lab
+Selector:       controller-uid=080bdf46-8895-11e9-9282-86f9042c452c
+Labels:         controller-uid=080bdf46-8895-11e9-9282-86f9042c452c
+                job-name=sleepy
+Annotations:    kubectl.kubernetes.io/last-applied-configuration={"apiVersion":"batch/v1","kind":"Job","metadata":{"annotations":{},"name":"sleepy","namespace":"lab"},"spec":{"template":{"spec":{"containers":[{"args"...
+Parallelism:    1
+Completions:    1
+Start Time:     Fri, 07 Jun 2019 05:55:27 +1000
+Pods Statuses:  0 Running / 1 Succeeded / 0 Failed
+Pod Template:
+  Labels:  controller-uid=080bdf46-8895-11e9-9282-86f9042c452c
+           job-name=sleepy
+  Containers:
+   resting:
+    Image:      busybox
+    Port:       <none>
+    Host Port:  <none>
+    Command:
+      /bin/sleep
+    Args:
+      3
+    Environment:  <none>
+    Mounts:       <none>
+  Volumes:        <none>
+Events:
+  Type    Reason            Age   From            Message
+  ----    ------            ----  ----            -------
+  Normal  SuccessfulCreate  4m    job-controller  Created pod: sleepy-hk7bd
+inders-MacBook-Pro:~ chauhai1$ 
+
+=====
+
+inders-MacBook-Pro:~ chauhai1$ kubectl get job
+NAME      DESIRED   SUCCESSFUL   AGE
+sleepy    1         1            42s
+inders-MacBook-Pro:~ chauhai1$ 
+
+===
+3. View the configuration information of the job. There are three parameters we can use to affect how the job runs. Use -o
+yaml to see these parameters. We can see that backoffLimit, completions, and the parallelism. We’ll add these
+parameters next.
+
+inders-MacBook-Pro:k8s chauhai1$  kubectl get jobs.batch sleepy -o yaml
+
+<output_omitted>
+  uid: 080bdf46-8895-11e9-9282-86f9042c452c
+spec:
+  backoffLimit: 6
+  completions: 1
+  parallelism: 1
+  selector:
+    matchLabels:
+<output_omitted>
+
+
+4. As the job continues to AGE in a completion state, delete the job
+
+inders-MacBook-Pro:k8s chauhai1$ kubectl get jobs
+NAME      DESIRED   SUCCESSFUL   AGE
+sleepy    1         1            10m
+inders-MacBook-Pro:k8s chauhai1$ 
+
+inders-MacBook-Pro:k8s chauhai1$ kubectl delete jobs.batch sleepy
+job.batch "sleepy" deleted
+inders-MacBook-Pro:k8s chauhai1$ 
+
+
+5. Edit the YAML and add the completions: parameter and set it to 5.
+
+
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sleepy
+spec:
+  completions: 5  #<-------- add this line
+  template:
+   spec:
+     containers:
+     - name: resting
+       image: busybox
+       command: [ "/bin/sleep" ]
+       args: [ "3" ]
+     restartPolicy: Never
+
+6. Create the job again. As you view the job note that COMPLETIONS begins as zero of 5
+
+inders-MacBook-Pro:~  kubectl create -f job.yaml
+job.batch/sleepy created
+inders-MacBook-Pro:~  kubectl get jobs.batch
+NAME COMPLETIONS DURATION AGE
+sleepy 0/5 5s 5s
+
+inders-MacBook-Pro:~ chauhai1$ kubectl get jobs
+NAME      DESIRED   SUCCESSFUL   AGE
+sleepy    5         0            3s
+inders-MacBook-Pro:~ chauhai1$ 
+
+7. View the pods that running. Again the output may be different depending on the speed of typing
+
+inders-MacBook-Pro:~ chauhai1$ kubectl get pods
+NAME                       READY     STATUS             RESTARTS   AGE
+sleepy-hgzds               1/1       Running            0          6s
+sleepy-mrjj4               0/1       Completed          0          17s
+
+8. Eventually all the jobs will have completed. Verify then delete the job.
+
+inders-MacBook-Pro:~ chauhai1$ kubectl get jobs
+NAME      DESIRED   SUCCESSFUL   AGE
+sleepy    5         5            55s
+inders-MacBook-Pro:~ chauhai1$ 
+inders-MacBook-Pro:~ chauhai1$ 
+inders-MacBook-Pro:~ chauhai1$ kubectl get pods
+NAME                       READY     STATUS             RESTARTS   AGE
+sleepy-gn7rm               0/1       Completed          0          35s
+sleepy-hgzds               0/1       Completed          0          47s
+sleepy-mrjj4               0/1       Completed          0          58s
+sleepy-ntnwb               0/1       Completed          0          25s
+sleepy-plb48               0/1       Completed          0          14s
+inders-MacBook-Pro:~ chauhai1$ 
+
+9. Edit the YAML again. This time add in the parallelism: parameter. Set it to 2 such that two pods at a time will be
+deployed
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sleepy
+spec:
+  completions: 5
+  parallelism: 3 #<----- add this
+  template:
+   spec:
+     containers:
+     - name: resting
+       image: busybox
+       command: [ "/bin/sleep" ]
+       args: [ "3" ]
+     restartPolicy: Never
+     
+     
+10. Create the job again. You should see the pods deployed 3 at a time until all five have completed.
+
+inders-MacBook-Pro:~ chauhai1$ kubectl get all
+NAME                           READY     STATUS              RESTARTS   AGE
+pod/dev-web-574797c78d-rjm7p   0/1       CrashLoopBackOff    15         54m
+pod/sleepy-5l4m7               1/1       Running             0          12s
+pod/sleepy-8ntzf               0/1       ContainerCreating   0          12s
+pod/sleepy-cbzv9               0/1       Completed           0          12s
+pod/sleepy-vvdgv               0/1       ContainerCreating   0          2s
+
+NAME                      DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/dev-web   1         1         1            0           54m
+
+NAME                                 DESIRED   CURRENT   READY     AGE
+replicaset.apps/dev-web-574797c78d   1         1         0         54m
+
+NAME               DESIRED   SUCCESSFUL   AGE
+job.batch/sleepy   5         1            12s
+inders-MacBook-Pro:~ chauhai1$
+
+
+inders-MacBook-Pro:~ chauhai1$ kubectl get jobs
+NAME      DESIRED   SUCCESSFUL   AGE
+sleepy    5         5            47s
+inders-MacBook-Pro:~ chauhai1$ 
+
+11. Add a parameter which will stop the job after a certain number of seconds. Set the activeDeadlineSeconds: to 15.
+The job and all pods will end once it runs for 15 seconds. We will also increase the sleep argument to five, just to be
+sure does not expire by itself.
+
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sleepy
+spec:
+  completions: 5
+  parallelism: 3 
+  activeDeadlineSeconds: 15 #<---- add this line
+  template:
+   spec:
+     containers:
+     - name: resting
+       image: busybox
+       command: [ "/bin/sleep" ]
+       args: [ "5" ]
+     restartPolicy: Never
+
+
+12. Delete and recreate the job again. It should run for 15 seconds, usually 3/5, then continue to age without further
+completions.
+inders-MacBook-Pro:~  kubectl delete jobs.batch sleepy
+job.batch "sleepy" deleted
+inders-MacBook-Pro:~  kubectl create -f job.yaml
+job.batch/sleepy created
+inders-MacBook-Pro:~  kubectl get jobs
+NAME COMPLETIONS DURATION AGE
+sleepy 1/5 6s 6s
+inders-MacBook-Pro:~  kubectl get jobs
+NAME COMPLETIONS DURATION AGE
+sleepy 3/5 16s 16s
+
+13. View the message: entry in the Status section of the object YAML output.
+
+inders-MacBook-Pro:~ chauhai1$ kubectl get job sleepy -o yaml
+
+status:
+  conditions:
+  - lastProbeTime: 2019-06-06T20:22:12Z
+    lastTransitionTime: 2019-06-06T20:22:12Z
+    message: Job was active longer than specified deadline
+    reason: DeadlineExceeded
+    status: "True"
+    type: Failed
+  startTime: 2019-06-06T20:21:57Z
+  succeeded: 1
+  
+
+14. Delete the job.
+~$ kubectl delete jobs.batch sleepy
+job.batch "sleepy" deleted
+
+###########################################
+###########################################
+
+Create a CronJob
+================
+
+1) A CronJob creates a watch loop which will create a batch job on your behalf when the time becomes true. We Will use our
+existing Job file to start.
+
+inders-MacBook-Pro:~ chauhai1$ cp job.yaml cronjob.yaml
+inders-MacBook-Pro:~ chauhai1$ 
+
+2. Edit the file to look like the annotated file shown below. Edit the lines mentioned below. The three parameters we added
+will need to be removed. Other lines will need to be further indented.
+
+
+$ vim cronjob.yaml
+
+ apiVersion: batch/v1beta1 #<-- Add beta1 to be v1beta1
+ kind: CronJob #<-- Update this line to CronJob
+ metadata:
+   name: sleepy
+ spec:
+   schedule: "* * * * *" #<-- Add Linux style cronjob syntax
+   jobTemplate: #<-- New jobTemplate and spec move
+    spec:
+     template: 
+       spec: 
+         containers:
+         - name: resting
+           image: busybox
+           command: [ "/bin/sleep" ]
+           args: [ "5" ]
+         restartPolicy: Never  
+  
+
+3. Create the new CronJob. View the jobs. It will take two minutes for the CronJob to run and generate a new batch Job.
+inders-MacBook-Pro:~  kubectl create -f cronjob.yaml
+cronjob.batch/sleepy created
+inders-MacBook-Pro:~  kubectl get cronjobs.batch
+NAME SCHEDULE SUSPEND ACTIVE LAST SCHEDULE AGE
+sleepy */2 * * * * False 0 <none> 8s
+inders-MacBook-Pro:~  kubectl get jobs.batch
+No resources found.
+
+4. After two minutes you should see jobs start to run.
+
+inders-MacBook-Pro:~  kubectl get cronjobs.batch
+NAME SCHEDULE SUSPEND ACTIVE LAST SCHEDULE AGE
+sleepy */2 * * * * False 0 21s 2m1s
+inders-MacBook-Pro:~  kubectl get jobs.batch
+NAME COMPLETIONS DURATION AGE
+sleepy-1539722040 1/1 5s 18s
+inders-MacBook-Pro:~  kubectl get jobs.batch
+NAME COMPLETIONS DURATION AGE
+sleepy-1539722040 1/1 5s 5m17s
+sleepy-1539722160 1/1 6s 3m17s
+sleepy-1539722280 1/1 6s 77s
+
+
+5. Ensure that if the job continues for more than 10 seconds it is terminated. We will first edit the sleep command to run
+for 30 seconds then add the activeDeadlineSeconds: entry to the container.
+
+ apiVersion: batch/v1beta1 #<-- Add beta1 to be v1beta1
+ kind: CronJob #<-- Update this line to CronJob
+ metadata:
+   name: sleepy
+ spec:
+   schedule: "*/2 * * * *" #<-- Add Linux style cronjob syntax
+   jobTemplate: #<-- New jobTemplate and spec move
+    spec:
+     template: 
+       spec: 
+         activeDeadlineSeconds: 10 #<-- Add this line
+         containers:
+         - name: resting
+           image: busybox
+           command: [ "/bin/sleep" ]
+           args: [ "30" ]
+         restartPolicy: Never
+
+6. Delete and recreate the CronJob. It may take a couple of minutes for the batch Job to be created and terminate due to
+the timer.
+student@lfs458-node-1a0a:~$ kubectl delete cronjobs.batch sleepy
+cronjob.batch "sleepy" deleted
+student@lfs458-node-1a0a:~$ kubectl create -f cronjob.yaml
+cronjob.batch/sleepy created
+student@lfs458-node-1a0a:~$ kubectl get jobs
+NAME COMPLETIONS DURATION AGE
+sleepy-1539723240 0/1 61s 61s
+student@lfs458-node-1a0a:~$ kubectl get cronjobs.batch
+NAME SCHEDULE SUSPEND ACTIVE LAST SCHEDULE AGE
+sleepy */2 * * * * False 1 72s 94s
+student@lfs458-node-1a0a:~$ kubectl get jobs
+NAME COMPLETIONS DURATION AGE
+sleepy-1539723240 0/1 75s 75s
+student@lfs458-node-1a0a:~$ kubectl get jobs
+NAME COMPLETIONS DURATION AGE
+sleepy-1539723240 0/1 2m19s 2m19s
+sleepy-1539723360 0/1 19s 19s
+student@lfs458-node-1a0a:~$ kubectl get cronjobs.batch
+NAME SCHEDULE SUSPEND ACTIVE LAST SCHEDULE AGE
+sleepy */2 * * * * False 2 31s 2m53s
+
+7. Clean up by deleting the CronJob.
+student@lfs458-node-1a0a:~$ kubectl delete cronjobs.batch sleepy
+cronjob.batch "sleepy" deleted
