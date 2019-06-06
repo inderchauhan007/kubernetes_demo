@@ -1,0 +1,172 @@
+A ReplicaSet’s purpose is to maintain a stable set of replica Pods running at any given time. As such, it is often used to 
+guarantee the availability of a specified number of identical Pods.
+
+How a RelicaSet Work ?
+
+1) A ReplicaSet is defined with fields, including a selector that specifies how to identify Pods it can acquire
+
+2) Number of replicas indicating how many Pods it should be maintaining
+
+3) A pod template specifying the data of new Pods it should create to meet the number of replicas criteria
+
+4) The link a ReplicaSet has to its Pods is via the Pods’ metadata.ownerReferences field, which specifies what resource the 
+current object is owned by. All Pods acquired by a ReplicaSet have their owning ReplicaSet’s identifying information within 
+their ownerReferences field. It’s through this link that the ReplicaSet knows of the state of the Pods it is maintaining and 
+plans accordingly.
+
+5) A ReplicaSet identifies new Pods to acquire by using its selector. If there is a Pod that has no OwnerReference or the 
+OwnerReference is not a controller   and it matches a ReplicaSet’s selector, it will be immediately acquired by said ReplicaSet.
+
+When to use a ReplicaSet ?
+
+1) A ReplicaSet ensures that a specified number of pod replicas are running at any given time. 
+
+2) However, a Deployment is a higher-level concept that manages ReplicaSets and provides declarative updates to Pods along 
+with a lot of other useful features.
+
+
+This actually means that you may never need to manipulate ReplicaSet objects: use a Deployment instead. 
+
+====
+LAB :
+
+RelicaSet Lab
+============
+A ReplicaSet is a next-generation of a Replication Controller, which differs only in the selectors supported. The only
+reason to use a ReplicaSet anymore is if you have no need for updating container software or require update orchestration
+which won’t work with the typical process.
+
+1. View any current ReplicaSets., you should have none reported in the your  namespace.
+inders-MBP:poddemo chauhai1$kubectl get rs
+No resources found.
+
+2.Create a YAML file for a simple ReplicaSet. The apiVersion setting depends on the version of Kubernetes you are using. 
+Versions 1.8 and beyond will use apps/v1beta1, then perhaps someday apps/v1beta2 and then probably a stable apps/v1. 
+We will use an older version of nginx then update to a newer version later in the exercise.
+
+rs.yaml content
+================================================================================================
+
+apiVersion: extensions/v1beta1
+kind: ReplicaSet
+metadata:
+ name: rs-one
+spec:
+ replicas: 2
+ template:
+  metadata:
+   labels:
+     system: ReplicaOne
+  spec:
+   containers:
+   - name: grafana
+     image: dcartifactory.service.dev:5000/openshift3/grafana:2.0
+     ports:
+     - containerPort: 80
+==================================================================================================
+
+3. Create the ReplicaSet:
+inders-MBP:poddemo chauhai1~$ kubectl create -f rs.yaml
+replicaset.extensions/rs-one created
+
+4. View the newly created ReplicaSet:
+
+inders-MBP:poddemo chauhai1:~$ kubectl describe rs rs-one
+Name: rs-one
+Namespace: default
+Selector: system=ReplicaOne
+Labels: system=ReplicaOne
+Annotations: <none>
+Replicas: 2 current / 2 desired
+Pods Status: 2 Running / 0 Waiting / 0 Succeeded / 0 Failed
+Pod Template:
+Labels: system=ReplicaOne
+Containers:
+nginx:
+Image: nginx:1.9.1
+Port: 80/TCP
+Environment: <none>
+Mounts: <none>
+Volumes: <none>
+Events: <none>
+
+5.View the Pods created with the ReplicaSet. From the yaml file created there should be two Pods. You may see a
+Completed busybox which will be cleared out eventually.
+
+inders-MBP:poddemo chauhai1:~$ kubectl get pods
+NAME READY STATUS RESTARTS AGE
+rs-one-2p9x4 1/1 Running 0 5m4s
+rs-one-3c6pb 1/1 Running 0 5m4s
+
+
+6. Now we will delete the ReplicaSet, but not the Pods it controls.
+inders-MBP:poddemo chauhai1~$ kubectl delete rs rs-one --cascade=false
+replicaset.extensions "rs-one" deleted
+
+7. View the ReplicaSet and Pods again:
+inders-MBP:poddemo chauhai1$ kubectl describe rs rs-one
+Error from server (NotFound): replicasets.extensions "rs-one" not found
+inders-MBP:poddemo chauhai1$ kubectl get pods
+NAME READY STATUS RESTARTS AGE
+rs-one-2p9x4 1/1 Running 0 7m
+rs-one-3c6pb 1/1 Running 0 7m
+
+8. Create the ReplicaSet again. As long as we do not change the selector field, the new ReplicaSet should take
+ownership. Pod software versions cannot be updated this way.
+
+inders-MBP:poddemo chauhai1$ kubectl create -f rs.yaml
+replicaset.extensions/rs-one created
+
+9. View the age of the ReplicaSet and then the Pods within:
+inders-MBP:poddemo chauhai1$ kubectl get rs
+NAME DESIRED CURRENT READY AGE
+rs-one 2 2 2 46s
+inders-MBP:poddemo chauhai1$ kubectl get pods
+NAME READY STATUS RESTARTS AGE
+rs-one-2p9x4 1/1 Running 0 8m
+rs-one-3c6pb 1/1 Running 0 8m
+
+10. We will now isolate a Pod from its ReplicaSet. Begin by editing the label of a Pod. We will change the system:
+parameter to be IsolatedPod.
+inders-MBP:poddemo chauhai1$ kubectl edit po rs-one-3c6pb
+....
+labels:
+system: IsolatedPod #<-- Change from ReplicaOne
+name: rs-one-3c6pb
+....
+11. View the number of pods within the ReplicaSet. You should see two running.
+
+inders-MBP:poddemo chauhai1$ kubectl get rs
+NAME DESIRED CURRENT READY AGE
+rs-one 2 2 2 4m
+
+12. Now view the pods with the label key of system. You should note that there are three, with one being newer than others.
+The ReplicaSet made sure to keep two replicas, replacing the Pod which was isolated.
+
+inders-MBP:poddemo chauhai1$ kubectl get po -L system
+NAME READY STATUS RESTARTS AGE SYSTEM
+rs-one-3c6pb 1/1 Running 0 10m IsolatedPod
+rs-one-2p9x4 1/1 Running 0 10m ReplicaOne
+rs-one-dq5xd 1/1 Running 0 30s ReplicaOne
+
+13. Delete the ReplicaSet, then view any remaining Pods.
+inders-MBP:poddemo chauhai1$ kubectl delete rs rs-one
+replicaset.extensions "rs-one" deleted
+inders-MBP:poddemo chauhai1$ kubectl get po
+NAME READY STATUS RESTARTS AGE
+rs-one-3c6pb 1/1 Running 0 14m
+rs-one-dq5xd 0/1 Terminating 0 4m
+
+14. In the above example the Pods had not finished termination. Wait for a bit and check again. There should be no
+ReplicaSets, but one Pod.
+inders-MBP:poddemo chauhai1$ kubectl get rs
+No resources found.
+inders-MBP:poddemo chauhai1$ kubectl get po
+NAME READY STATUS RESTARTS AGE
+rs-one-3c6pb 1/1 Running 0 16m
+
+15. Delete the remaining Pod using the label.
+inders-MBP:poddemo chauhai1$ kubectl delete po -l system=IsolatedPod
+pod "rs-one-3c6pb" deleted
+
+
