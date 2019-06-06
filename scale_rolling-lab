@@ -64,3 +64,8 @@ inders-MacBook-Pro:poddemo chauhai1$
 
 Rolling Updates and Rollbacks
 ============================
+
+One of the advantages of micro-services is the ability to replace and upgrade a container while continuing to respond to 
+client requests. We will use the default OnDelete setting that upgrades a container when the predecessor is deleted, then the
+use the RollingUpdate feature as well.
+
