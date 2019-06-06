@@ -1,0 +1,77 @@
+A DaemonSet is a watch loop object like a Deployment which we have been working with in the rest of the labs. The DaemonSet
+ensures that when a node is added to a cluster a pods will be created on that node.
+A Deployment would only ensure a particular number of pods are created in general, several could be on a single node. Using a 
+DaemonSet can be helpful to ensure applications are on each node, helpful for things like metrics and logging especially in
+large clusters where hardware my be swapped out often. Should a node be be removed from a cluster the DaemonSet would ensure 
+the Pods are garbage collected before removal. Starting with Kubernetes v1.12 the scheduler handles DaemonSet deployment which
+means we can now configure certain nodes to not have a particular DaemonSet pods.
+
+LAB
+===
+
+1. We begin by creating a yaml file. In this case the kind would be set to DaemonSet. For ease of use we will copy the
+previously created replicasetdefination.yaml  file and make a couple edits. Remove the Replicas: 2 line.
+
+Perform Below Action :
+======================
+
+A) Copy exisitng replicaset defination to a new file with name deamonsetdefination.yaml
+
+inders-MacBook-Pro:poddemo chauhai1$ cp -p replicasetdefination.yaml  deamonsetdefination.yaml
+
+B) Modify Below contents 
+
+....
+2 kind: DaemonSet
+3 ....
+4 name: ds-one
+5 ....
+6 replicas: 2 #<<<----Remove this line
+7 ....
+8 system: DaemonSetOne
+9 ....
+
+C) File will look like below - post modification 
+
+====
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+ name: ds-one
+spec:
+ template:
+  metadata:
+   labels:
+     system: DeamonSetOne
+  spec:
+   containers:
+   - name: grafana
+     image: grafana/grafana:6.0.2
+     ports:
+     - containerPort: 80
+
+======
+
+D) Apply the defination file . :
+
+inders-MacBook-Pro:poddemo chauhai1$ kubectl create -f deamonsetdefination.yaml 
+
+E) Check the Status :
+
+inders-MacBook-Pro:poddemo chauhai1$ kubectl get ds
+NAME      DESIRED   CURRENT   READY     UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE
+ds-one    1         1         1         1            1           <none>          5s
+inders-MacBook-Pro:poddemo chauhai1$ 
+
+F)  Check the Pods created by DeamonSet
+
+inders-MacBook-Pro:poddemo chauhai1$ kubectl get all
+NAME                                    READY     STATUS             RESTARTS   AGE
+pod/ds-one-5fk5s                        1/1       Running            0          <invalid>
+
+NAME                    DESIRED   CURRENT   READY     UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE
+daemonset.apps/ds-one   1         1         1         1            1           <none>          <invalid>
+
+===
+
+Cool Lab Done Successfully -- Cheers !
