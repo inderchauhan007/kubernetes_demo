@@ -69,3 +69,171 @@ One of the advantages of micro-services is the ability to replace and upgrade a 
 client requests. We will use the default OnDelete setting that upgrades a container when the predecessor is deleted, then the
 use the RollingUpdate feature as well.
 
+
+1. Begin by viewing the current updateStrategy setting for the DaemonSet created in the previous section.
+
+inders-MBP:poddemo chauhai1$~$ kubectl get ds ds-one -o yaml | grep -A 1 Strategy
+updateStrategy:
+type: OnDelete
+
+2. Update the DaemonSet to use a newer version of the nginx server. This time use the set command instead of edit. Set
+the version to be 1.12.1-alpine.
+
+inders-MBP:poddemo chauhai1$~$ kubectl set image ds ds-one nginx=nginx:1.12.1-alpine
+daemonset.extensions/ds-one image updated
+
+3. Verify that the Image: parameter for the Pod checked in the previous section is unchanged.
+
+inders-MBP:poddemo chauhai1$~$ kubectl describe po ds-one-b1dcv |grep Image:
+Image: nginx:1.9.1
+
+4. Delete the Pod. Wait until the replacement Pod is running and check the version.
+
+inders-MBP:poddemo chauhai1$~$ kubectl delete po ds-one-b1dcv
+pod "ds-one-b1dcv" deleted
+inders-MBP:poddemo chauhai1$~$ kubectl get po
+NAME READY STATUS RESTARTS AGE
+ds-one-xc86w 1/1 Running 0 19s
+ds-one-z31r4 1/1 Running 0 4m8s
+
+inders-MBP:poddemo chauhai1$~$ kubectl describe po ds-one-xc86w |grep Image:
+Image: nginx:1.12.1-alpine
+
+5. View the image running on the older Pod. It should still show version 1.9.1.
+inders-MBP:poddemo chauhai1$~$ kubectl describe po ds-one-z31r4 |grep Image:
+Image: nginx:1.9.1
+
+6. View the history of changes for the DaemonSet. You should see two revisions listed. The number of revisions kept is set
+in the DaemonSet with v.1.12.1 the history kept has increased to ten from two, by default.
+
+inders-MBP:poddemo chauhai1$~$ kubectl rollout history ds ds-one
+daemonsets "ds-one"
+REVISION CHANGE-CAUSE
+1 <none>
+2 <none>
+
+7. View the settings for the various versions of the DaemonSet. The Image: line should be the only difference between the
+two outputs.
+inders-MBP:poddemo chauhai1$~$ kubectl rollout history ds ds-one --revision=1
+daemonsets "ds-one" with revision #1
+Pod Template:
+Labels: system=DaemonSetOne
+Containers:
+nginx:
+Image: nginx:1.9.1
+Port: 80/TCP
+Environment: <none>
+Mounts: <none>
+Volumes: <none>
+inders-MBP:poddemo chauhai1$~$ kubectl rollout history ds ds-one --revision=2
+....
+Image: nginx:1.12.1-alpine
+.....
+
+
+8. Use kubectl rollout undo to change the DaemonSet back to an earlier version. As we are still using the OnDelete
+
+strategy there should be no change to the Pods.
+
+
+inders-MBP:poddemo chauhai1$~$ kubectl rollout undo ds ds-one --to-revision=1
+daemonset.extensions/ds-one rolled back
+inders-MBP:poddemo chauhai1$~$ kubectl describe po ds-one-xc86w |grep Image:
+Image: nginx:1.12.1-alpine
+
+9. Delete the Pod, wait for the replacement to spawn then check the image version again.
+inders-MBP:poddemo chauhai1$~$ kubectl delete po ds-one-xc86w
+pod "ds-one-xc86w" deleted
+inders-MBP:poddemo chauhai1$~$ kubectl get po
+NAME READY STATUS RESTARTS AGE
+ds-one-qc72k 1/1 Running 0 10s
+ds-one-xc86w 0/1 Terminating 0 12m
+ds-one-z31r4 1/1 Running 0 28m
+inders-MBP:poddemo chauhai1$~$ kubectl describe po ds-one-qc72k |grep Image:
+Image: nginx:1.9.1
+
+
+10. View the details of the DaemonSet. The Image should be v1.9.1 in the output.
+inders-MBP:poddemo chauhai1$~$ kubectl describe ds |grep Image:
+Image: nginx:1.9.1
+
+
+11. View the current configuration for the DaemonSet in YAML output. Look for the update strategy near the end of the
+output.
+
+
+inders-MBP:poddemo chauhai1$~$ kubectl get ds ds-one -o yaml
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+.....
+terminationGracePeriodSeconds: 30
+templateGeneration: 3
+updateStrategy:
+type: OnDelete
+status:
+currentNumberScheduled: 2
+.....
+
+12. Create a new DaemonSet, this time setting the update policy to RollingUpdate. Begin by generating a new config file.
+inders-MBP:poddemo chauhai1$~$ kubectl get ds ds-one -o yaml --export > ds2.yaml
+
+13. Edit the file. Change the name, around line eight and the update strategy around line 38.
+inders-MBP:poddemo chauhai1$~$ vim ds2.yaml
+....
+name: ds-two
+....
+type: RollingUpdate
+
+4. Create the new DaemonSet and verify the nginx version in the new pods.
+inders-MBP:poddemo chauhai1$~$ kubectl create -f ds2.yaml
+daemonset.extensions/ds-two created
+inders-MBP:poddemo chauhai1$~$ kubectl get po
+NAME READY STATUS RESTARTS AGE
+ds-one-qc72k 1/1 Running 0 28m
+ds-one-z31r4 1/1 Running 0 57m
+ds-two-10khc 1/1 Running 0 5m
+ds-two-kzp9g 1/1 Running 0 5m
+inders-MBP:poddemo chauhai1$~$ kubectl describe po ds-two-10khc |grep Image:
+Image: nginx:1.9.1
+
+
+15. Edit the configuration file and set the image to a newer version such as 1.12.1-alpine.
+inders-MBP:poddemo chauhai1$~$ kubectl edit ds ds-two
+....
+- image: nginx:1.12.1-alpine
+.....
+
+16. View the age of the DaemonSets. It should be around ten minutes old, depending on how fast you type.
+
+inders-MBP:poddemo chauhai1$~$ kubectl get ds ds-two
+NAME DESIRED CURRENT READY UP-TO-DATE AVAILABLE NODE-SELECTOR AGE
+ds-two 2 2 2 2 2 <none> 10m
+17. Now view the age of the Pods. Two should be much younger than the DaemonSet. They are also a few seconds apart
+due to the nature of the rolling update where one then the other pod was terminated and recreated.
+inders-MBP:poddemo chauhai1$~$ kubectl get po
+
+
+NAME READY STATUS RESTARTS AGE
+ds-one-qc72k 1/1 Running 0 36m
+ds-one-z31r4 1/1 Running 0 1h
+ds-two-2p8vz 1/1 Running 0 34s
+ds-two-8lx7k 1/1 Running 0 32s
+18. Verify the Pods are using the new version of the software.
+inders-MBP:poddemo chauhai1$~$ kubectl describe po ds-two-8lx7k |grep Image:
+Image: nginx:1.12.1-alpine
+19. View the rollout status and the history of the DaemonSets.
+inders-MBP:poddemo chauhai1$~$ kubectl rollout status ds ds-two
+daemon set "ds-two" successfully rolled out
+inders-MBP:poddemo chauhai1$~$ kubectl rollout history ds ds-two
+daemonsets "ds-two"
+REVISION CHANGE-CAUSE
+1 <none>
+2 <none>
+20. View the changes in the update they should look the same as the previous history, but did not require the Pods to be
+deleted for the update to take place.
+inders-MBP:poddemo chauhai1$~$ kubectl rollout history ds ds-two --revision=2
+...
+Image: nginx:1.12.1-alpine
+21. Clean up the system by removing one of the DaemonSets. We will leave the other running.
+inders-MBP:poddemo chauhai1$~$ kubectl delete ds ds-two
+daemonset.extensions "ds-two" deleted
