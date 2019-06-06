@@ -1,0 +1,101 @@
+ReplicaSet + Pods = Deployments
+
+A ReplicaSet, an improved version of a Replication Controller from an earlier iteration of Kubernetes, work with the 
+Kubernetes Master to manage Pods. If a Pod is removed/terminated/crashes/etc then the ReplicaSet will kill the Pod and 
+recreate a new Pod to ensure high levels of consistency for your application.
+
+A Pod is a container for containers. Most Pods have a 1-to-1 relationship between a Pod and a container, this isn’t a 
+requirement though.If a container needs to share resources with other containers then you can include multiple containers in 
+a single Pod.
+
+A Deployment brings together ReplicaSets and Pods into a single process to deploy your application.
+
+Sample Deployment File to Overview the Parameters :
+===================================================
+apiVersion: apps/v1beta1
+kind: Deployment # it is a deployment
+metadata:
+  name: endpoints # name of the Deployment
+  labels:
+    # any Pods with matching labels are included in this Deployment
+    app: kubernetes-series
+    tier: endpoints
+spec:
+  # ReplicaSet specification
+  replicas: 3 # we are making 3 Pods
+  selector:
+    matchLabels:
+      # ReplicaSet labels will match Pods with the following labels
+      tier: endpoints
+  template:
+    # Pod template
+    metadata:
+      labels:
+        # Pod's labels
+        app: kubernetes-series
+        tier: endpoints
+    spec:
+      # Pod specification
+      containers:
+        # the container(s) in this Pod
+        - name: partone-container
+          image: gcr.io/inder-firstproject/partone-container:latest
+          # the readiness probe details
+          readinessProbe:
+            httpGet: # make an HTTP request
+              port: 8080 # port to use
+              path: /readiness # endpoint to hit
+              scheme: HTTP # or HTTPS
+            initialDelaySeconds: 3 # how long to wait before checking
+            periodSeconds: 3 # how long to wait between checks
+            successThreshold: 1 # how many successes to hit before accepting
+            failureThreshold: 1 # how many failures to accept before failing
+            timeoutSeconds: 1 # how long to wait for a response
+          # the livenessProbe probe details
+          livenessProbe:
+            httpGet: # make an HTTP request
+              port: 8080 # port to use
+              path: /healthcheck # endpoint to hit
+              scheme: HTTP # or HTTPS
+            initialDelaySeconds: 3 # how long to wait before checking
+            periodSeconds: 3 # how long to wait between checks
+            successThreshold: 1 # how many successes to hit before accepting
+            failureThreshold: 1 # how many failures to accept before failing
+            timeoutSeconds: 1 # how long to wait for a response
+          # environment variables for the Pod
+          env:
+            - name: GCLOUD_PROJECT
+              value:  inder-firstproject
+            - name: POD_ENDPOINT
+              value: endpoint
+            - name: NODE_ENV
+              value: production
+          ports:
+            - containerPort: 80
+            
+  ===========
+  LAB :
+  
+  yaml Defination to use :
+  
+  apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    app: nginx
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: dcartifactory.service.dev:5000/openshift3/
+        ports:
+        - containerPort: 80
