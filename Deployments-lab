@@ -99,3 +99,4 @@ spec:
         image: dcartifactory.service.dev:5000/openshift3/grafana:2.0
         ports:
         - containerPort: 80
+
